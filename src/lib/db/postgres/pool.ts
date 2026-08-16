@@ -78,8 +78,8 @@ export function getPgPool(): Pool {
   _pool = new Pool({
     host: url.hostname,
     port: url.port ? parseInt(url.port, 10) : 5432,
-    user: url.username,
-    password: url.password,
+    user: decodeURIComponent(url.username),
+    password: decodeURIComponent(url.password),
     database: url.pathname.slice(1), // Remove leading '/'
     ssl: buildSslOption(connectionString),
   });
