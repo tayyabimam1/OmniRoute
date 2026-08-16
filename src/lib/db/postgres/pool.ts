@@ -7,6 +7,7 @@
 
 import fs from "fs";
 import { Pool } from "pg";
+import { parse } from "pg-connection-string";
 
 let _pool: Pool | null = null;
 
@@ -25,7 +26,7 @@ let _pool: Pool | null = null;
 function buildSslOption(
   connectionString: string
 ): { rejectUnauthorized: boolean; ca?: string } | undefined {
-  if (!connectionString.includes("sslmode=require")) return undefined;
+  if (connectionString.includes("sslmode=disable")) return undefined;
 
   const caPath = process.env.PGSSLROOTCERT;
   if (caPath) {
@@ -54,13 +55,15 @@ function buildSslOption(
  * Returns the shared Postgres connection pool, creating it on first call.
  * Throws if DATABASE_URL is not set — callers must configure it before use.
  *
- * CRITICAL: We parse the connection string manually into discrete fields (host, port,
- * user, password, database) and pass those to Pool(), rather than passing
- * connectionString directly. This is required because pg's built-in parser uses
- * Object.assign(config, parse(connectionString)), which applies the parse result LAST,
- * causing its ssl: {} to overwrite our explicit buildSslOption() result. By avoiding
- * the connectionString key in the Pool config, we preserve the ssl object intact.
- * See: node_modules/pg/lib/connection-parameters.js line that calls Object.assign.
+ * CRITICAL: We use pg-connection-string's parse() ourselves and spread its discrete
+ * fields (host, port, user, password, database, ...) into Pool(), setting ssl last —
+ * rather than passing connectionString directly to Pool(). This is required because
+ * pg's built-in parser uses Object.assign(config, parse(connectionString)) internally,
+ * which applies the parse result LAST, causing its ssl: {} to overwrite our explicit
+ * buildSslOption() result. parse() itself never returns a connectionString key, so
+ * spreading it here does not reintroduce that overwrite — only Pool()'s own internal
+ * re-parse of a connectionString key would. See:
+ * node_modules/pg/lib/connection-parameters.js line that calls Object.assign.
  */
 export function getPgPool(): Pool {
   if (_pool) return _pool;
@@ -73,15 +76,13 @@ export function getPgPool(): Pool {
     );
   }
 
-  // Parse connection string manually to avoid pg's parser overwriting ssl config
-  const url = new URL(connectionString);
   _pool = new Pool({
-    host: url.hostname,
-    port: url.port ? parseInt(url.port, 10) : 5432,
-    user: decodeURIComponent(url.username),
-    password: decodeURIComponent(url.password),
-    database: url.pathname.slice(1), // Remove leading '/'
+    ...parse(connectionString),
     ssl: buildSslOption(connectionString),
+  });
+
+  _pool.on("error", (err) => {
+    console.error("[postgres] Unexpected error on idle client:", err.message);
   });
 
   return _pool;

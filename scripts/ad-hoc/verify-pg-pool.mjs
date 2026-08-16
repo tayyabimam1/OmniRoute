@@ -1,5 +1,5 @@
 // Manual runnable check for the Postgres pool — pragmatic tier, not a node:test suite.
-// Run: DATABASE_URL="postgres://..." node scripts/ad-hoc/verify-pg-pool.mjs
+// Run: DATABASE_URL="postgres://..." node --import tsx/esm scripts/ad-hoc/verify-pg-pool.mjs
 import { getPgPool, closePgPool } from "../../src/lib/db/postgres/pool.ts";
 
 const pool = getPgPool();
