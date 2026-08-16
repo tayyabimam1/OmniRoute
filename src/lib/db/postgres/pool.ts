@@ -53,6 +53,14 @@ function buildSslOption(
 /**
  * Returns the shared Postgres connection pool, creating it on first call.
  * Throws if DATABASE_URL is not set — callers must configure it before use.
+ *
+ * CRITICAL: We parse the connection string manually into discrete fields (host, port,
+ * user, password, database) and pass those to Pool(), rather than passing
+ * connectionString directly. This is required because pg's built-in parser uses
+ * Object.assign(config, parse(connectionString)), which applies the parse result LAST,
+ * causing its ssl: {} to overwrite our explicit buildSslOption() result. By avoiding
+ * the connectionString key in the Pool config, we preserve the ssl object intact.
+ * See: node_modules/pg/lib/connection-parameters.js line that calls Object.assign.
  */
 export function getPgPool(): Pool {
   if (_pool) return _pool;
@@ -65,8 +73,14 @@ export function getPgPool(): Pool {
     );
   }
 
+  // Parse connection string manually to avoid pg's parser overwriting ssl config
+  const url = new URL(connectionString);
   _pool = new Pool({
-    connectionString,
+    host: url.hostname,
+    port: url.port ? parseInt(url.port, 10) : 5432,
+    user: url.username,
+    password: url.password,
+    database: url.pathname.slice(1), // Remove leading '/'
     ssl: buildSslOption(connectionString),
   });
 
