@@ -28,9 +28,12 @@ function buildSslOption(
 ): { rejectUnauthorized: boolean; ca?: string } | undefined {
   if (connectionString.includes("sslmode=disable")) return undefined;
 
-  const caPath = process.env.PGSSLROOTCERT;
-  if (caPath) {
-    return { rejectUnauthorized: true, ca: fs.readFileSync(caPath, "utf-8") };
+  const caPathOrPem = process.env.PGSSLROOTCERT;
+  if (caPathOrPem) {
+    const ca = caPathOrPem.includes("BEGIN CERTIFICATE")
+      ? caPathOrPem
+      : fs.readFileSync(caPathOrPem, "utf-8");
+    return { rejectUnauthorized: true, ca };
   }
 
   if (process.env.PG_ALLOW_INSECURE_TLS === "true") {
