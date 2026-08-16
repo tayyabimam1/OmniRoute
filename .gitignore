@@ -285,3 +285,6 @@ docker-compose.yml.bak
 
 # CLI local cache/state
 .playwright-cli
+
+# Local Aiven CA cert (operator-specific, not project config)
+aiven-ca.pem
